@@ -135,6 +135,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+MedAI/
 
 # Spyder project settings
 .spyderproject
