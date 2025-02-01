@@ -126,3 +126,5 @@ Once the MVP demonstrates success:
 - Target broader healthcare segments like home healthcare and telemedicine.
 
 This MVP serves as a foundational step toward revolutionizing healthcare staffing and efficiency through AI.
+
+Time to go
