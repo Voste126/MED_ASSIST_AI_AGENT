@@ -3,22 +3,24 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 from pydantic import BaseModel, ValidationError, validator
 import os
-from twilio.rest import Client
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import africastalking  # Import Africa's Talking library
+from dotenv import load_dotenv
 
 app = FastAPI()
-# Twilio credentials
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
 
-# SendGrid API key
-SENDGRID_API_KEY = "your_sendgrid_api_key"
+load_dotenv()
 
-client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# Initialize Africa's Talking SDK
+africastalking_username = os.environ.get("AFRICASTALKING_USERNAME")  # Your Africa's Talking username
+africastalking_api_key = os.environ.get("AFRICASTALKING_API_KEY")    # Your Africa's Talking API key
 
-# Define the Claim model (same as before)
+# Initialize the SDK
+africastalking.initialize(africastalking_username, africastalking_api_key)
+
+# Get the SMS service
+sms = africastalking.SMS
+
+# Define the Claim model
 class Claim(BaseModel):
     claim_id: int
     patient_name: str
@@ -80,30 +82,39 @@ async def submit_claims(claims: list[dict]):
         submitted_claims.append({**claim, "status": "submitted"})
     return {"submitted_claims": submitted_claims}
 
-# Endpoint to notify users about invalid claims
-@app.post("/notify/")
+# Endpoint to notify users about invalid claims via SMS (Africa's Talking)
+@app.post("/notify/sms/")
 async def notify_invalid_claims(invalid_claims: list[dict]):
+    recipient_phone_number = "+254769475680"  # Replace with the recipient's phone number in E.164 format
+
     for claim in invalid_claims:
-        message = client.messages.create(
-            body=f"Claim {claim['claim_id']} has errors: {claim['errors']}",
-            from_=TWILIO_PHONE_NUMBER,
-            to="recipient_phone_number"
-        )
+        message_body = f"Claim {claim['data']['claim_id']} has errors: {claim['errors']}"
+        try:
+            # Send the SMS
+            response = sms.send(message_body, [recipient_phone_number])
+            print(f"SMS sent successfully: {response}")
+        except Exception as e:
+            print(f"Failed to send SMS: {str(e)}")
+
     return {"message": f"Notified {len(invalid_claims)} users about invalid claims"}
 
-# Endpoint to notify users about invalid claims via email
+# Optional: Endpoint to notify users about invalid claims via email (SendGrid)
+# If you still want to keep the email functionality, uncomment this section.
+"""
 @app.post("/notify/email/")
-async def notify_invalid_claims(invalid_claims: list[dict]):
+async def notify_invalid_claims_email(invalid_claims: list[dict]):
+    SENDGRID_API_KEY = "your_sendgrid_api_key"
     for claim in invalid_claims:
         message = Mail(
             from_email="from@example.com",
             to_emails="to@example.com",
-            subject=f"Error in Claim {claim['claim_id']}",
-            plain_text_content=f"Claim {claim['claim_id']} has errors: {claim['errors']}"
+            subject=f"Error in Claim {claim['data']['claim_id']}",
+            plain_text_content=f"Claim {claim['data']['claim_id']} has errors: {claim['errors']}"
         )
         try:
             sg = SendGridAPIClient(SENDGRID_API_KEY)
             response = sg.send(message)
         except Exception as e:
             print(str(e))
-    return {"message": f"Notified {len(invalid_claims)} users about invalid claims"}
+    return {"message": f"Notified {len(invalid_claims)} users about invalid claims via email"}
+"""
